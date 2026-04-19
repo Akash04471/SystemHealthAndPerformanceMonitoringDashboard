@@ -1,13 +1,21 @@
 import pandas as pd
+import os
 import mysql.connector
 import matplotlib.pyplot as plt
 
+
+def _require_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
 conn = mysql.connector.connect(
-    host="127.0.0.1",
-    user="root",
-    password="Akash@2004",
-    database="system_monitoring",
-    port=3306
+    host=os.getenv("DB_HOST", "127.0.0.1"),
+    user=_require_env("DB_USER"),
+    password=_require_env("DB_PASSWORD"),
+    database=os.getenv("DB_NAME", "system_monitoring"),
+    port=int(os.getenv("DB_PORT", "3306")),
 )
 
 df = pd.read_sql("SELECT * FROM system_metrics", conn)
