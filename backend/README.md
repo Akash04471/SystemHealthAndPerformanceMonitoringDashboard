@@ -45,6 +45,9 @@ This folder contains the Phase 2 FastAPI backend implementation.
 ## Notes
 
 - JWT access and refresh tokens are implemented.
+- Login endpoint includes basic per-client rate limiting (`LOGIN_RATE_LIMIT_WINDOW_SECONDS`, `LOGIN_RATE_LIMIT_MAX_ATTEMPTS`).
+- API responses include `X-Request-ID` and structured request logs for traceability.
+- Non-development environments can enforce strict CORS (`STRICT_CORS_IN_NON_DEV=true`) to block local origins.
 - Service registration, metric ingestion, and log ingestion persist to MySQL tables.
 - Z-score anomaly detection runs after metrics ingestion.
 - Alerts and alert events are generated with deduplication and cooldown handling.

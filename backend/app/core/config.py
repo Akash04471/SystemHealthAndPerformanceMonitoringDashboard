@@ -9,6 +9,7 @@ class Settings(BaseSettings):
 
     app_env: str = Field(default="development", alias="APP_ENV")
     api_prefix: str = "/api/v1"
+    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     db_host: str = Field(default="127.0.0.1", alias="DB_HOST")
     db_port: int = Field(default=3306, alias="DB_PORT")
@@ -33,6 +34,10 @@ class Settings(BaseSettings):
     zscore_min_points: int = Field(default=10, alias="ZSCORE_MIN_POINTS")
     alert_cooldown_minutes: int = Field(default=15, alias="ALERT_COOLDOWN_MINUTES")
     cors_origins: str = Field(default="http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:5175,http://localhost:5173,http://localhost:5174,http://localhost:5175", alias="CORS_ORIGINS")
+    strict_cors_in_non_dev: bool = Field(default=True, alias="STRICT_CORS_IN_NON_DEV")
+
+    login_rate_limit_window_seconds: int = Field(default=60, alias="LOGIN_RATE_LIMIT_WINDOW_SECONDS")
+    login_rate_limit_max_attempts: int = Field(default=5, alias="LOGIN_RATE_LIMIT_MAX_ATTEMPTS")
 
 
 @lru_cache

@@ -3,6 +3,7 @@ def test_health_live(client):
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+    assert response.headers.get("X-Request-ID")
 
 
 def test_login_success_returns_tokens(client):
@@ -69,3 +70,34 @@ def test_me_returns_claims_with_valid_access_token(client):
     assert payload["email"] == "admin@example.com"
     assert payload["role"] == "admin"
     assert payload["token_type"] == "access"
+
+
+def test_login_rate_limit_returns_429_after_max_attempts(client, monkeypatch):
+    monkeypatch.setenv("LOGIN_RATE_LIMIT_WINDOW_SECONDS", "60")
+    monkeypatch.setenv("LOGIN_RATE_LIMIT_MAX_ATTEMPTS", "2")
+
+    from backend.app.core.config import get_settings
+    from backend.app.api.routes import auth as auth_routes
+
+    get_settings.cache_clear()
+    auth_routes._login_rate_limiter = auth_routes.LoginRateLimiter()
+
+    first = client.post(
+        "/api/v1/auth/login",
+        json={"email": "admin@example.com", "password": "wrong"},
+    )
+    second = client.post(
+        "/api/v1/auth/login",
+        json={"email": "admin@example.com", "password": "wrong"},
+    )
+    third = client.post(
+        "/api/v1/auth/login",
+        json={"email": "admin@example.com", "password": "wrong"},
+    )
+
+    assert first.status_code == 401
+    assert second.status_code == 401
+    assert third.status_code == 429
+    assert "Too many login attempts" in third.json()["detail"]
+
+    get_settings.cache_clear()

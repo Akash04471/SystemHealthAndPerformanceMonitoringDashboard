@@ -169,6 +169,14 @@ body {
   font-size: 0.9rem;
 }
 
+.security-row {
+  margin-top: 6px;
+}
+
+.security-row small {
+  color: #334155;
+}
+
 .error {
   color: #b91c1c;
 }

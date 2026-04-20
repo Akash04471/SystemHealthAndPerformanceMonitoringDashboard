@@ -10,6 +10,7 @@ import {
 const initialState = {
   loading: false,
   error: "",
+  requestId: "",
   token: "",
   refreshToken: "",
   lastUpdated: "",
@@ -31,13 +32,38 @@ export function App() {
   const [anomalyServiceFilter, setAnomalyServiceFilter] = useState("all");
   const [refreshSeconds, setRefreshSeconds] = useState(15);
 
+  function getErrorStatus(error) {
+    return error && typeof error === "object" && typeof error.status === "number"
+      ? error.status
+      : null;
+  }
+
+  function getErrorRequestId(error) {
+    return error && typeof error === "object" && typeof error.requestId === "string"
+      ? error.requestId
+      : "";
+  }
+
+  function getErrorDetail(error) {
+    return error && typeof error === "object" && typeof error.detail === "string"
+      ? error.detail
+      : "";
+  }
+
   function toDisplayError(error, fallback = "Unknown error") {
     if (!(error instanceof Error)) {
       return fallback;
     }
 
-    if (error.message.startsWith("401:")) {
+    const status = getErrorStatus(error);
+    const detail = getErrorDetail(error);
+
+    if (status === 401 || error.message.startsWith("401:")) {
       return "Session expired. Please load dashboard again.";
+    }
+
+    if (status === 429 || error.message.startsWith("429:")) {
+      return detail || "Too many login attempts. Please wait and try again.";
     }
 
     return error.message;
@@ -61,7 +87,8 @@ export function App() {
         ...current,
         token: nextAccessToken,
         refreshToken: nextRefreshToken,
-        error: ""
+        error: "",
+        requestId: ""
       }));
 
       return action(nextAccessToken);
@@ -125,14 +152,16 @@ export function App() {
         alerts: snapshot.alerts,
         anomalies: snapshot.anomalies,
         lastUpdated: new Date().toISOString(),
-        liveStatus: markLive ? "live" : current.liveStatus
+        liveStatus: markLive ? "live" : current.liveStatus,
+        requestId: ""
       }));
     } catch (error) {
       if (markLive) {
         setState((current) => ({
           ...current,
           liveStatus: "error",
-          error: error instanceof Error ? error.message : "Unknown error"
+          error: toDisplayError(error),
+          requestId: getErrorRequestId(error)
         }));
         return;
       }
@@ -163,7 +192,8 @@ export function App() {
       setState((current) => ({
         ...current,
         loading: false,
-        error: toDisplayError(error)
+        error: toDisplayError(error),
+        requestId: getErrorRequestId(error)
       }));
     }
   }
@@ -179,7 +209,8 @@ export function App() {
         setState((current) => ({
           ...current,
           liveStatus: "error",
-          error: toDisplayError(error)
+          error: toDisplayError(error),
+          requestId: getErrorRequestId(error)
         }));
       });
     }, Math.max(5, refreshSeconds) * 1000);
@@ -218,7 +249,8 @@ export function App() {
         ...current,
         loading: false,
         liveStatus: "error",
-        error: toDisplayError(error)
+        error: toDisplayError(error),
+        requestId: getErrorRequestId(error)
       }));
     }
   }
@@ -237,7 +269,8 @@ export function App() {
       setState((current) => ({
         ...current,
         loading: false,
-        error: toDisplayError(error)
+        error: toDisplayError(error),
+        requestId: getErrorRequestId(error)
       }));
     }
   }
@@ -256,7 +289,8 @@ export function App() {
       setState((current) => ({
         ...current,
         loading: false,
-        error: toDisplayError(error)
+        error: toDisplayError(error),
+        requestId: getErrorRequestId(error)
       }));
     }
   }
@@ -264,8 +298,8 @@ export function App() {
   return (
     <main className="page">
       <section className="auth-box">
-        <h1>Phase 3 Frontend</h1>
-        <p>Connects to your live Phase 2 backend.</p>
+        <h1>Phase 4 Frontend</h1>
+        <p>Connects to your live backend with hardened auth and observability signals.</p>
         <form onSubmit={handleLogin} className="auth-form">
           <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Admin email" />
           <input
@@ -282,6 +316,11 @@ export function App() {
           {state.token ? <small>Token loaded</small> : null}
           {state.token ? <small>Live: {state.liveStatus}</small> : null}
           {state.lastUpdated ? <small>Last update: {new Date(state.lastUpdated).toLocaleTimeString()}</small> : null}
+        </div>
+        <div className="status-row security-row">
+          <small>Security: login rate limit active</small>
+          <small>Observability: request IDs enabled</small>
+          {state.requestId ? <small>Last request ID: {state.requestId}</small> : null}
         </div>
         <div className="control-row">
           <label>

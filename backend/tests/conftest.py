@@ -11,14 +11,18 @@ def client(monkeypatch):
     monkeypatch.setenv("BOOTSTRAP_ADMIN_EMAIL", "admin@example.com")
     monkeypatch.setenv("BOOTSTRAP_ADMIN_PASSWORD", "admin123")
     monkeypatch.setenv("BOOTSTRAP_ADMIN_ROLE", "admin")
+    monkeypatch.setenv("LOGIN_RATE_LIMIT_WINDOW_SECONDS", "60")
+    monkeypatch.setenv("LOGIN_RATE_LIMIT_MAX_ATTEMPTS", "5")
 
     from backend.app.core.config import get_settings
 
     get_settings.cache_clear()
 
     import backend.app.main as main_module
+    from backend.app.api.routes import auth as auth_routes
 
     importlib.reload(main_module)
+    auth_routes._login_rate_limiter = auth_routes.LoginRateLimiter()
 
     with TestClient(main_module.app) as test_client:
         yield test_client
