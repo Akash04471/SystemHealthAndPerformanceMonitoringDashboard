@@ -11,6 +11,13 @@ This folder contains the Phase 2 FastAPI backend implementation.
 4. Start API from repository root:
   python -m uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
 
+## Run Tests
+
+1. Install test dependencies from repository root:
+  pip install -r backend/requirements-dev.txt
+2. Run backend tests from repository root:
+  pytest backend/tests -q
+
 ## Available Endpoints
 
 - Health
