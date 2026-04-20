@@ -99,4 +99,44 @@ describe("App", () => {
     expect(alertsPanel).toHaveTextContent("DB pressure");
     expect(alertsPanel).not.toHaveTextContent("API latency spike");
   });
+
+  it("resolves an open alert", async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Load Dashboard" }));
+    await screen.findByText("Token loaded");
+
+    const resolveButtons = screen.getAllByRole("button", { name: "Resolve" });
+    const enabledResolveButton = resolveButtons.find((button) => !button.hasAttribute("disabled"));
+    expect(enabledResolveButton).toBeDefined();
+
+    fireEvent.click(enabledResolveButton);
+
+    expect(api.resolveAlert).toHaveBeenCalledWith("access-token", 1);
+    expect(api.getDashboardSnapshot).toHaveBeenCalled();
+  });
+
+  it("manual refresh requests a new snapshot", async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Load Dashboard" }));
+    await screen.findByText("Token loaded");
+
+    const callsAfterLogin = api.getDashboardSnapshot.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Refresh now" }));
+
+    expect(api.getDashboardSnapshot.mock.calls.length).toBeGreaterThan(callsAfterLogin);
+  });
+
+  it("auto-refresh schedules polling with selected refresh interval", async () => {
+    const intervalSpy = vi.spyOn(window, "setInterval");
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Load Dashboard" }));
+    await screen.findByText("Token loaded");
+
+    expect(intervalSpy).toHaveBeenCalled();
+    const configuredIntervals = intervalSpy.mock.calls.map((call) => call[1]);
+    expect(configuredIntervals).toContain(15000);
+
+    intervalSpy.mockRestore();
+  });
 });
