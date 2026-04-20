@@ -1,9 +1,29 @@
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 
+function buildApiError(response, text) {
+  const requestId = response.headers.get("x-request-id") ?? "";
+
+  let detail = text;
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed === "object" && typeof parsed.detail === "string") {
+      detail = parsed.detail;
+    }
+  } catch {
+    // Keep raw text as detail when body is not JSON.
+  }
+
+  const error = new Error(`${response.status}: ${detail}`);
+  error.status = response.status;
+  error.detail = detail;
+  error.requestId = requestId;
+  return error;
+}
+
 async function parseJsonResponse(response) {
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`${response.status}: ${text}`);
+    throw buildApiError(response, text);
   }
 
   return response.json();
