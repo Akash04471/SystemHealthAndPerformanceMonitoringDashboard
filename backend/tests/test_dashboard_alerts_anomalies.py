@@ -1,7 +1,5 @@
 from datetime import datetime
 
-import pytest
-
 
 class ScriptedCursor:
     def __init__(self, script):

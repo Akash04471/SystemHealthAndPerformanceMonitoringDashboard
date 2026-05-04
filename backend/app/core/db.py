@@ -18,8 +18,23 @@ def get_connection() -> MySQLConnection:
 
 
 def ensure_schema() -> None:
-    conn = get_connection()
+    settings = get_settings()
+    # First connect without database to ensure it exists
+    conn = mysql.connector.connect(
+        host=settings.db_host,
+        port=settings.db_port,
+        user=settings.db_user,
+        password=settings.db_password,
+    )
     cursor = conn.cursor()
+    try:
+        cursor.execute(f"CREATE DATABASE IF NOT EXISTS {settings.db_name}")
+        cursor.execute(f"USE {settings.db_name}")
+    except Exception as e:
+        cursor.close()
+        conn.close()
+        raise e
+
     try:
         cursor.execute(
             """
@@ -82,7 +97,7 @@ def ensure_schema() -> None:
             CREATE TABLE IF NOT EXISTS alerts (
                 id BIGINT PRIMARY KEY AUTO_INCREMENT,
                 service_id BIGINT NOT NULL,
-                source_type ENUM('metric','log','prediction') NOT NULL,
+                source_type ENUM('metric','log','prediction','system') NOT NULL,
                 source_ref_id BIGINT,
                 status ENUM('open','acknowledged','resolved','suppressed') NOT NULL DEFAULT 'open',
                 severity ENUM('low','medium','high','critical') NOT NULL,
@@ -96,6 +111,19 @@ def ensure_schema() -> None:
                 FOREIGN KEY (service_id) REFERENCES services(id),
                 INDEX idx_alerts_service_status (service_id, status),
                 INDEX idx_alerts_dedup (dedup_key)
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ingestion_idempotency (
+                id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                service_id BIGINT NOT NULL,
+                endpoint VARCHAR(100) NOT NULL,
+                idempotency_key VARCHAR(255) NOT NULL UNIQUE,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (service_id) REFERENCES services(id),
+                INDEX idx_ingestion_idempotency_key (idempotency_key)
             )
             """
         )

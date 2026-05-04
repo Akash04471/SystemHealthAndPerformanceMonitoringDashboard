@@ -49,11 +49,13 @@ def dashboard_summary(
 
         cursor.execute(
             """
-            SELECT s.service_key, MAX(m.ts) AS last_ingestion_at
-            FROM services s
-            LEFT JOIN metrics m ON m.service_id = s.id
-            GROUP BY s.service_key
-            ORDER BY s.service_key ASC
+            SELECT service_key, last_seen_at,
+                   CASE 
+                     WHEN last_seen_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE) THEN 'online'
+                     ELSE 'offline'
+                   END as status
+            FROM services
+            ORDER BY service_key ASC
             """
         )
         ingestion_rows = cursor.fetchall()

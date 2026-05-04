@@ -3,6 +3,7 @@
 .env.*.local
 backend/.env
 frontend/.env
+collector_agent/queue.jsonl
 __pycache__/
 *.pyc
 frontend/node_modules/

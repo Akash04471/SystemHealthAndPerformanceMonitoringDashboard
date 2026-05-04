@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
@@ -100,7 +100,18 @@ describe("App", () => {
     expect(alertsPanel).not.toHaveTextContent("API latency spike");
   });
 
-  it("resolves an open alert", async () => {
+  it("resolves an open alert and updates the alert status in the UI", async () => {
+    api.getDashboardSnapshot
+      .mockResolvedValueOnce(makeSnapshot())
+      .mockResolvedValueOnce(
+        makeSnapshot({
+          alerts: [
+            { id: 1, severity: "low", status: "resolved", service_key: "svc-api", title: "API latency spike" },
+            { id: 2, severity: "high", status: "resolved", service_key: "svc-db", title: "DB pressure" }
+          ]
+        })
+      );
+
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Load Dashboard" }));
     await screen.findByText("Token loaded");
@@ -112,10 +123,15 @@ describe("App", () => {
     fireEvent.click(enabledResolveButton);
 
     expect(api.resolveAlert).toHaveBeenCalledWith("access-token", 1);
-    expect(api.getDashboardSnapshot).toHaveBeenCalled();
+    await waitFor(() => expect(api.getDashboardSnapshot).toHaveBeenCalledTimes(2));
+
+    const resolvedAlertItem = await screen.findByText(/API latency spike/);
+    const resolvedAlertRow = resolvedAlertItem.closest("li");
+    expect(within(resolvedAlertRow).getByText(/Status: resolved/i)).toBeInTheDocument();
+    expect(within(resolvedAlertRow).getByRole("button", { name: "Resolve" })).toBeDisabled();
   });
 
-  it("manual refresh requests a new snapshot", async () => {
+  it("manual refresh requests a new snapshot and updates last updated text", async () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Load Dashboard" }));
     await screen.findByText("Token loaded");
@@ -123,10 +139,67 @@ describe("App", () => {
     const callsAfterLogin = api.getDashboardSnapshot.mock.calls.length;
     fireEvent.click(screen.getByRole("button", { name: "Refresh now" }));
 
-    expect(api.getDashboardSnapshot.mock.calls.length).toBeGreaterThan(callsAfterLogin);
+    await waitFor(() => expect(api.getDashboardSnapshot.mock.calls.length).toBeGreaterThan(callsAfterLogin));
+    expect(screen.getByText(/Last update:/)).toBeInTheDocument();
   });
 
-  it("auto-refresh schedules polling with selected refresh interval", async () => {
+  it("updates the dashboard display when a refreshed snapshot contains new ingestion data", async () => {
+    api.getDashboardSnapshot
+      .mockResolvedValueOnce(
+        makeSnapshot({
+          summary: {
+            open_alert_count: 0,
+            recent_anomaly_count: 0,
+            alerts_by_severity: {}
+          },
+          alerts: [],
+          anomalies: []
+        })
+      )
+      .mockResolvedValueOnce(
+        makeSnapshot({
+          summary: {
+            open_alert_count: 3,
+            recent_anomaly_count: 1,
+            alerts_by_severity: { high: 2, critical: 1 }
+          },
+          alerts: [
+            {
+              id: 3,
+              severity: "high",
+              status: "open",
+              service_key: "svc-api",
+              title: "New ingestion alert"
+            }
+          ],
+          anomalies: [
+            {
+              id: 12,
+              severity: "medium",
+              service_key: "svc-api",
+              metric_name: "memory_percent",
+              score: 2.1
+            }
+          ]
+        })
+      );
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Load Dashboard" }));
+    await screen.findByText("Token loaded");
+
+    const openAlertsCard = screen.getByText("Open Alerts").closest("article");
+    expect(within(openAlertsCard).getByText("0")).toBeInTheDocument();
+    expect(screen.queryByText("New ingestion alert")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh now" }));
+    await waitFor(() => expect(within(openAlertsCard).getByText("3")).toBeInTheDocument());
+
+    expect(screen.getByText(/New ingestion alert/i)).toBeInTheDocument();
+    expect(screen.getByText(/Last update:/)).toBeInTheDocument();
+  });
+
+  it("auto-refresh schedules polling with the selected refresh interval", async () => {
     const intervalSpy = vi.spyOn(window, "setInterval");
 
     render(<App />);
@@ -134,9 +207,25 @@ describe("App", () => {
     await screen.findByText("Token loaded");
 
     expect(intervalSpy).toHaveBeenCalled();
-    const configuredIntervals = intervalSpy.mock.calls.map((call) => call[1]);
-    expect(configuredIntervals).toContain(15000);
+    expect(intervalSpy.mock.calls.some((call) => call[1] === 15000)).toBe(true);
 
     intervalSpy.mockRestore();
+  });
+
+  it("clears the auto-refresh interval when auto-refresh is disabled", async () => {
+    const intervalSpy = vi.spyOn(window, "setInterval");
+    const clearSpy = vi.spyOn(window, "clearInterval");
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Load Dashboard" }));
+    await screen.findByText("Token loaded");
+
+    const checkbox = screen.getByRole("checkbox", { name: /Auto-refresh/i });
+    fireEvent.click(checkbox);
+
+    expect(clearSpy).toHaveBeenCalled();
+
+    intervalSpy.mockRestore();
+    clearSpy.mockRestore();
   });
 });

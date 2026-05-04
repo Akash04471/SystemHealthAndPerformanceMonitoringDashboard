@@ -7,7 +7,7 @@ This folder contains the Phase 2 FastAPI backend implementation.
 1. Create and activate a virtual environment.
 2. Install dependencies from repository root:
   pip install -r backend/requirements.txt
-3. Ensure environment variables are set in repository root .env file.
+3. Ensure environment variables are set in repository root .env file. For frontend local development, include `VITE_API_BASE_URL`; for collector agent usage, include `COLLECTOR_*` variables.
 4. Start API from repository root:
   python -m uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
 

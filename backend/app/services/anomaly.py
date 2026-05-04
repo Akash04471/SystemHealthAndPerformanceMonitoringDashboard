@@ -2,6 +2,7 @@ from math import sqrt
 
 from ..core.config import get_settings
 from ..core.db import get_connection, now_utc_naive
+from .notification import NotificationService
 
 
 def _mean(values: list[float]) -> float:
@@ -135,6 +136,14 @@ def run_zscore_detection(service_id: int, service_key: str) -> dict:
                     """,
                     (alert_id, event_time, anomaly_id, latest_value),
                 )
+                
+                NotificationService.notify_alert(
+                    alert_id=alert_id,
+                    title=f"High {metric_name} without baseline",
+                    severity=severity,
+                    service_key=service_key,
+                    description=f"Value {latest_value:.2f} exceeded bootstrap threshold 95 with insufficient baseline points"
+                )
 
             conn.commit()
             if anomalies_created or alerts_created:
@@ -241,6 +250,14 @@ def run_zscore_detection(service_id: int, service_key: str) -> dict:
                 VALUES (%s, 'created', 'system', %s, JSON_OBJECT('anomaly_id', %s, 'zscore', %s))
                 """,
                 (alert_id, event_time, anomaly_id, zscore),
+            )
+
+            NotificationService.notify_alert(
+                alert_id=alert_id,
+                title=f"Anomaly detected in {metric_name}",
+                severity=severity,
+                service_key=service_key,
+                description=f"Z-score {zscore:.2f} exceeded threshold {settings.zscore_threshold}"
             )
 
         conn.commit()

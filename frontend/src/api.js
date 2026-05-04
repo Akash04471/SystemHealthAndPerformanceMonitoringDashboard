@@ -72,6 +72,14 @@ export async function getAnomalies(token) {
   return request("/api/v1/anomalies", token);
 }
 
+export async function getMetricsHistory(token, days = 7) {
+  return request(`/api/v1/analytics/history?days=${days}`, token);
+}
+
+export async function getPredictions(token) {
+  return request("/api/v1/analytics/predictions", token);
+}
+
 export async function acknowledgeAlert(token, alertId) {
   const response = await fetch(`${baseUrl}/api/v1/alerts/${alertId}/ack`, {
     method: "POST",
@@ -97,15 +105,19 @@ export async function resolveAlert(token, alertId) {
 }
 
 export async function getDashboardSnapshot(token) {
-  const [summary, alerts, anomalies] = await Promise.all([
+  const [summary, alerts, anomalies, history, predictions] = await Promise.all([
     getSummary(token),
     getAlerts(token),
-    getAnomalies(token)
+    getAnomalies(token),
+    getMetricsHistory(token),
+    getPredictions(token)
   ]);
 
   return {
     summary,
     alerts: alerts.items,
-    anomalies: anomalies.items
+    anomalies: anomalies.items,
+    history: history.points,
+    predictions: predictions.predictions
   };
 }

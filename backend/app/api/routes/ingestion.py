@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, Field
 
 from ...api.dependencies.auth import get_current_claims
@@ -70,14 +70,44 @@ def _upsert_service(identity: ServiceIdentity) -> int:
         conn.close()
 
 
+def _is_duplicate_request(service_id: int, endpoint: str, idempotency_key: str, cursor) -> bool:
+    cursor.execute(
+        "SELECT id FROM ingestion_idempotency WHERE idempotency_key = %s AND endpoint = %s AND service_id = %s",
+        (idempotency_key, endpoint, service_id),
+    )
+    return cursor.fetchone() is not None
+
+
+def _store_idempotency_key(service_id: int, endpoint: str, idempotency_key: str, cursor):
+    cursor.execute(
+        "INSERT INTO ingestion_idempotency (service_id, endpoint, idempotency_key) VALUES (%s, %s, %s)",
+        (service_id, endpoint, idempotency_key),
+    )
+
+
 @router.post("/metrics")
-def ingest_metrics(payload: MetricsIngestRequest, _claims: dict = Depends(get_current_claims)) -> dict:
+def ingest_metrics(
+    payload: MetricsIngestRequest,
+    _claims: dict = Depends(get_current_claims),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> dict:
     ensure_schema()
     service_id = _upsert_service(payload.identity)
+    endpoint = "metrics"
 
     conn = get_connection()
     cursor = conn.cursor()
     try:
+        if idempotency_key:
+            if _is_duplicate_request(service_id, endpoint, idempotency_key, cursor):
+                return {
+                    "status": "accepted",
+                    "received_points": 0,
+                    "service_key": payload.identity.service_key,
+                    "service_id": service_id,
+                    "duplication": "idempotent request",
+                }
+
         values = [
             (
                 service_id,
@@ -97,6 +127,8 @@ def ingest_metrics(payload: MetricsIngestRequest, _claims: dict = Depends(get_cu
                 """,
                 values,
             )
+            if idempotency_key:
+                _store_idempotency_key(service_id, endpoint, idempotency_key, cursor)
             conn.commit()
     finally:
         cursor.close()
@@ -114,13 +146,28 @@ def ingest_metrics(payload: MetricsIngestRequest, _claims: dict = Depends(get_cu
 
 
 @router.post("/logs")
-def ingest_logs(payload: LogsIngestRequest, _claims: dict = Depends(get_current_claims)) -> dict:
+def ingest_logs(
+    payload: LogsIngestRequest,
+    _claims: dict = Depends(get_current_claims),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> dict:
     ensure_schema()
     service_id = _upsert_service(payload.identity)
+    endpoint = "logs"
 
     conn = get_connection()
     cursor = conn.cursor()
     try:
+        if idempotency_key:
+            if _is_duplicate_request(service_id, endpoint, idempotency_key, cursor):
+                return {
+                    "status": "accepted",
+                    "received_records": 0,
+                    "service_key": payload.identity.service_key,
+                    "service_id": service_id,
+                    "duplication": "idempotent request",
+                }
+
         values = [
             (
                 service_id,
@@ -138,6 +185,8 @@ def ingest_logs(payload: LogsIngestRequest, _claims: dict = Depends(get_current_
                 """,
                 values,
             )
+            if idempotency_key:
+                _store_idempotency_key(service_id, endpoint, idempotency_key, cursor)
             conn.commit()
     finally:
         cursor.close()

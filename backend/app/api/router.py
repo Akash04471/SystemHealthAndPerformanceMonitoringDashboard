@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from .routes import alerts, anomalies, auth, dashboard, health, ingestion, metrics
+from .routes import alerts, anomalies, auth, dashboard, health, ingestion, metrics, analytics
 
 api_router = APIRouter()
 api_router.include_router(health.router, prefix="/health", tags=["health"])
@@ -10,3 +10,4 @@ api_router.include_router(metrics.router, prefix="/metrics", tags=["read"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 api_router.include_router(anomalies.router, prefix="/anomalies", tags=["analytics"])
 api_router.include_router(alerts.router, prefix="/alerts", tags=["alerts"])
+api_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
